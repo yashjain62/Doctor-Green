@@ -1,5 +1,4 @@
 import os
-import requests
 import torch
 import torch.nn as nn
 import pandas as pd
@@ -7,35 +6,29 @@ from flask import Flask, render_template, request
 from PIL import Image
 from torchvision import transforms
 from torchvision.models import resnet50
+from huggingface_hub import hf_hub_download
 
-# -----------------------------
+# --------------------------------------------------
 # Load CSV data
-# -----------------------------
+# --------------------------------------------------
 disease_info = pd.read_csv('disease_info.csv', encoding='cp1252')
 supplement_info = pd.read_csv('supplement_info.csv', encoding='cp1252')
 
-# -----------------------------
-# Model Download (HuggingFace)
-# -----------------------------
-MODEL_URL = "https://huggingface.co/yashj3238/green-model/resolve/main/ResNet50.pt"
-MODEL_PATH = "ResNet50.pt"
+# --------------------------------------------------
+# Download model from HuggingFace (handles LFS)
+# --------------------------------------------------
+print("Downloading model from HuggingFace Hub...")
 
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        print("Downloading model from HuggingFace...")
-        r = requests.get(MODEL_URL, stream=True)
-        r.raise_for_status()
-        with open(MODEL_PATH, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-        print("Model downloaded successfully!")
+MODEL_PATH = hf_hub_download(
+    repo_id="yashj3238/green-model",
+    filename="ResNet50.pt"
+)
 
-download_model()
+print("Model downloaded at:", MODEL_PATH)
 
-# -----------------------------
+# --------------------------------------------------
 # Load Model
-# -----------------------------
+# --------------------------------------------------
 model = resnet50(weights=None)
 num_classes = 39
 model.fc = nn.Linear(model.fc.in_features, num_classes)
@@ -46,9 +39,9 @@ model.eval()
 
 print("Model loaded successfully!")
 
-# -----------------------------
-# Image Transform (IMPORTANT)
-# -----------------------------
+# --------------------------------------------------
+# Image preprocessing (IMPORTANT for ResNet)
+# --------------------------------------------------
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -58,9 +51,9 @@ transform = transforms.Compose([
     )
 ])
 
-# -----------------------------
-# Prediction Function
-# -----------------------------
+# --------------------------------------------------
+# Prediction function
+# --------------------------------------------------
 def predict(file_path):
     try:
         img = Image.open(file_path).convert("RGB")
@@ -76,9 +69,9 @@ def predict(file_path):
         print("Prediction error:", e)
         return None
 
-# -----------------------------
+# --------------------------------------------------
 # Flask App
-# -----------------------------
+# --------------------------------------------------
 app = Flask(__name__)
 
 @app.route('/')
@@ -97,9 +90,9 @@ def ai_engine_page():
 def mobile_device_detected_page():
     return render_template('mobile-device.html')
 
-# -----------------------------
+# --------------------------------------------------
 # Submit Route
-# -----------------------------
+# --------------------------------------------------
 @app.route('/submit', methods=['POST'])
 def submit():
     image = request.files['image']
@@ -137,9 +130,9 @@ def submit():
         buy_link=supplement_buy_link
     )
 
-# -----------------------------
+# --------------------------------------------------
 # Market Route
-# -----------------------------
+# --------------------------------------------------
 @app.route('/market')
 def market():
     return render_template(
@@ -150,8 +143,8 @@ def market():
         buy=list(supplement_info['buy link'])
     )
 
-# -----------------------------
-# Run
-# -----------------------------
+# --------------------------------------------------
+# Run (for local only — Render uses gunicorn)
+# --------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True)
